@@ -1,0 +1,59 @@
+// 流式 TSS 协议：用于路由脚本在 3 个 tofnd 实例间转发多轮消息，完成 DKG 与门限签名。
+// 若 tofnd 实现本服务，则 tss_router.py 可连接 3 个 gRPC 做真实 TSS；否则请使用 --simulate 本地模拟。
+syntax = "proto3";
+
+option go_package = "tofnd;tofnd";
+
+package tofnd.streaming;
+
+// 流式多轮 Keygen：客户端发送 MessageIn 流，接收 MessageOut 流
+service MultisigStreaming {
+  rpc Keygen(stream MessageIn) returns (stream MessageOut);
+  rpc Sign(stream MessageIn) returns (stream MessageOut);
+}
+
+// 发往 tofnd 的消息
+message MessageIn {
+  oneof data {
+    KeygenInit keygen_init = 1;
+    SignInit   sign_init   = 2;
+    Traffic    traffic     = 3;
+  }
+}
+
+// tofnd 发出的消息（由路由转发到其他节点）
+message MessageOut {
+  oneof data {
+    Traffic       traffic        = 1;
+    KeygenResult  keygen_result  = 2;
+    SignResult    sign_result    = 3;
+  }
+}
+
+message KeygenInit {
+  string new_key_uid = 1;
+  string party_uid   = 2;  // 本节点 id，如 "0","1","2"
+  int32  algorithm   = 3;  // 0=ECDSA
+}
+
+message SignInit {
+  string key_uid      = 1;
+  bytes  msg_to_sign  = 2;  // 32 bytes
+  string party_uid    = 3;
+  int32  algorithm    = 4;
+}
+
+message Traffic {
+  bytes payload = 1;       // 协议载荷
+  string to_party_uid = 2; // 目标节点 id
+}
+
+message KeygenResult {
+  bytes pub_key = 1;  // 共享公钥
+  string error  = 2;
+}
+
+message SignResult {
+  bytes signature = 1;
+  string error    = 2;
+}
